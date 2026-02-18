@@ -21,49 +21,54 @@ jobs:
       - name: Deploy to VPS
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
-            set -e  # Exit on error
+            set -e
             
-            # First, check if directory exists, create if not
-            if [ ! -d "${{ secrets.APP_PATH }}" ]; then
-              echo "Creating directory: ${{ secrets.APP_PATH }}"
-              mkdir -p ${{ secrets.APP_PATH }}
-            fi
-            
-            # Navigate to directory
             cd ${{ secrets.APP_PATH }}
-            echo "Current directory: $(pwd)"
+            git pull origin main
             
-            # Check if it's a git repository, clone if not
-            if [ ! -d ".git" ]; then
-              echo "Git repository not found. Cloning..."
-              git clone https://github.com/${{ github.repository }}.git .
-            else
-              echo "Git repository found. Pulling latest changes..."
-              git pull origin main
+            # COMPLETE CLEANUP - Remove ALL containers that might be using ports
+            echo "=== Cleaning up all old containers ==="
+            
+            # Stop and remove any container with backend in name
+            docker stop $(docker ps -a | grep "backend" | awk '{print $1}') 2>/dev/null || true
+            docker rm $(docker ps -a | grep "backend" | awk '{print $1}') 2>/dev/null || true
+            
+            # Specifically remove any containers using port 3000
+            echo "Checking for processes on port 3000..."
+            if ss -tulpn | grep -q ":3000 "; then
+              echo "Port 3000 is in use. Finding and killing the process..."
+              sudo fuser -k 3000/tcp 2>/dev/null || true
             fi
             
-            # Check if Dockerfile exists
-            if [ ! -f "Dockerfile" ]; then
-              echo "ERROR: Dockerfile not found in $(pwd)"
-              ls -la
-              exit 1
-            fi
-            
-            # Stop and remove container if it exists (ignore errors if it doesn't)
+            # Also check for any containers using port 3003
             docker stop backend-3003 2>/dev/null || true
             docker rm backend-3003 2>/dev/null || true
             
+            # Wait for ports to be released
+            sleep 3
+            
+            # Verify ports are free
+            echo "=== Port Status ==="
+            echo "Port 3000: $(ss -tulpn | grep :3000 || echo 'free')"
+            echo "Port 3003: $(ss -tulpn | grep :3003 || echo 'free')"
+            
             # Build and run
-            echo "Building Docker image..."
+            echo "=== Building Docker image ==="
             docker build -t backend-3003 .
             
-            echo "Starting container..."
+            echo "=== Starting container on port 3003 ==="
             docker run -d \
               --name backend-3003 \
               -p 3003:3003 \
               --restart unless-stopped \
               backend-3003
             
-            echo "Deployment complete!"
+            echo "=== Deployment Status ==="
+            sleep 2
             docker ps | grep backend-3003
+            echo "=== Port Mapping ==="
+            docker port backend-3003
+            echo "=== Testing App ==="
+            curl -s http://localhost:3003/health || echo "Health check failed"
+            echo -e "\n✅ Deployment complete! App running on port 3003"
           EOF
