@@ -21,10 +21,49 @@ jobs:
       - name: Deploy to VPS
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+            set -e  # Exit on error
+            
+            # First, check if directory exists, create if not
+            if [ ! -d "${{ secrets.APP_PATH }}" ]; then
+              echo "Creating directory: ${{ secrets.APP_PATH }}"
+              mkdir -p ${{ secrets.APP_PATH }}
+            fi
+            
+            # Navigate to directory
             cd ${{ secrets.APP_PATH }}
-            git pull origin main
-            docker stop backend-3000 || true
-            docker rm backend-3000 || true
+            echo "Current directory: $(pwd)"
+            
+            # Check if it's a git repository, clone if not
+            if [ ! -d ".git" ]; then
+              echo "Git repository not found. Cloning..."
+              git clone https://github.com/${{ github.repository }}.git .
+            else
+              echo "Git repository found. Pulling latest changes..."
+              git pull origin main
+            fi
+            
+            # Check if Dockerfile exists
+            if [ ! -f "Dockerfile" ]; then
+              echo "ERROR: Dockerfile not found in $(pwd)"
+              ls -la
+              exit 1
+            fi
+            
+            # Stop and remove container if it exists (ignore errors if it doesn't)
+            docker stop backend-3000 2>/dev/null || true
+            docker rm backend-3000 2>/dev/null || true
+            
+            # Build and run
+            echo "Building Docker image..."
             docker build -t backend-3000 .
-            docker run -d --name backend-3000 -p 3000:3000 backend-3000
+            
+            echo "Starting container..."
+            docker run -d \
+              --name backend-3000 \
+              -p 3000:3000 \
+              --restart unless-stopped \
+              backend-3000
+            
+            echo "Deployment complete!"
+            docker ps | grep backend-3000
           EOF
