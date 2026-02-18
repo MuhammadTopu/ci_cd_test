@@ -23,7 +23,8 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
             cd ${{ secrets.APP_PATH }}
             git pull origin main
-            npm install --production
-            pm2 restart backend-3000 || pm2 start npm --name "backend-3000" -- run start
-            pm2 save
+            docker stop backend-3000 || true
+            docker rm backend-3000 || true
+            docker build -t backend-3000 .
+            docker run -d --name backend-3000 -p 3000:3000 backend-3000
           EOF
