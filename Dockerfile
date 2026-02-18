@@ -13,8 +13,8 @@ RUN npm install --production
 # Copy the rest of the app
 COPY . .
 
-# Expose the port your app runs on (change if not 3000)
-EXPOSE 3000
+# Expose the port your app runs on (change if not 3003)
+EXPOSE 3003
 
 # Start the app
 CMD ["node", "app.js"]

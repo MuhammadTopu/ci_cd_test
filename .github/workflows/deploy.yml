@@ -50,20 +50,20 @@ jobs:
             fi
             
             # Stop and remove container if it exists (ignore errors if it doesn't)
-            docker stop backend-3000 2>/dev/null || true
-            docker rm backend-3000 2>/dev/null || true
+            docker stop backend-3003 2>/dev/null || true
+            docker rm backend-3003 2>/dev/null || true
             
             # Build and run
             echo "Building Docker image..."
-            docker build -t backend-3000 .
+            docker build -t backend-3003 .
             
             echo "Starting container..."
             docker run -d \
-              --name backend-3000 \
-              -p 3000:3000 \
+              --name backend-3003 \
+              -p 3003:3003 \
               --restart unless-stopped \
-              backend-3000
+              backend-3003
             
             echo "Deployment complete!"
-            docker ps | grep backend-3000
+            docker ps | grep backend-3003
           EOF
